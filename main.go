@@ -12,6 +12,7 @@ import (
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/vehicle/audi"
+	"github.com/evcc-io/evcc/vehicle/id"
 	"github.com/evcc-io/evcc/vehicle/seat"
 	"github.com/evcc-io/evcc/vehicle/skoda"
 	"github.com/evcc-io/evcc/vehicle/vw"
@@ -23,7 +24,7 @@ const cache = time.Minute
 var brand, vin, user, password string
 
 func fatalf(format string, a ...interface{}) {
-	fmt.Printf(format, a...)
+	fmt.Printf(format+"\n", a...)
 	os.Exit(1)
 }
 
@@ -66,7 +67,7 @@ var brands = map[string]params{
 
 func main() {
 	// parameters
-	flag.StringVar(&brand, "brand", "", "vehicle brand (audi|seat|skoda|vw)")
+	flag.StringVar(&brand, "brand", "", "vehicle brand (audi|enyaq|id|seat|skoda|vw)")
 	flag.StringVar(&vin, "vin", "", "vehicle identification number")
 	flag.StringVar(&user, "user", "", "user name")
 	flag.StringVar(&password, "password", "", "password")
@@ -80,20 +81,35 @@ func main() {
 	vin = strings.ToUpper(vin)
 
 	// create the token source
-	var identity *vw.Identity
+	var identityTokenSource oauth2.TokenSource
 	log := util.NewLogger("ident")
 
 	switch strings.ToLower(brand) {
 	case "audi", "seat", "skoda", "vw":
 		params := brands[strings.ToLower(brand)]
-		identity = vw.NewIdentity(log, params.AuthClientID, params.AuthParams, user, password)
+		identity := vw.NewIdentity(log, params.AuthClientID, params.AuthParams, user, password)
 		if err := identity.Login(); err != nil {
-			fatalf("login failed: %w", err)
+			fatalf("login failed: %v", err)
 		}
+		identityTokenSource = identity
+
+	case "enyaq":
+		identity := skoda.NewIdentity(log, skoda.ConnectAuthParams, user, password)
+		if err := identity.Login(); err != nil {
+			fatalf("login failed: %v", err)
+		}
+		identityTokenSource = identity
+
+	case "id":
+		identity := id.NewIdentity(log, user, password)
+		if err := identity.Login(); err != nil {
+			fatalf("login failed: %v", err)
+		}
+		identityTokenSource = identity
 	}
 
 	// couple the token source with the API
-	ts := &RemoteTokenSource{ts: identity}
+	ts := &RemoteTokenSource{ts: identityTokenSource}
 
 	// create the actual api
 	var vehicle api.Battery
@@ -104,9 +120,17 @@ func main() {
 		params := brands[strings.ToLower(brand)]
 		api := vw.NewAPI(log, ts, params.Brand, params.Country)
 		if err := api.HomeRegion(vin); err != nil {
-			fatalf("home region failed: %w", err)
+			fatalf("home region failed: %v", err)
 		}
 		vehicle = vw.NewProvider(api, vin, cache)
+
+	case "enyaq":
+		api := skoda.NewAPI(log, ts)
+		vehicle = skoda.NewProvider(api, vin, cache)
+
+	case "id":
+		api := id.NewAPI(log, ts)
+		vehicle = id.NewProvider(api, vin, cache)
 	}
 
 	_, ok := vehicle.(api.VehicleStartCharge)

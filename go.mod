@@ -3,14 +3,14 @@ module github.com/andig/evcc-vehicle-demo
 go 1.17
 
 require (
-	github.com/evcc-io/evcc v0.0.0-20211119171740-f0528befaa78
+	github.com/evcc-io/evcc v0.0.0-20211120160510-c19f27948448
 	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.7.1 // indirect
+	github.com/PuerkitoBio/goquery v1.8.0 // indirect
 	github.com/andig/gosunspec v0.0.0-20211108155140-af2e73b86e71 // indirect
-	github.com/andybalholm/cascadia v1.2.0 // indirect
+	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef // indirect
 	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
