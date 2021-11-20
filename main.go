@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/vehicle/audi"
 	"github.com/evcc-io/evcc/vehicle/seat"
+	"github.com/evcc-io/evcc/vehicle/skoda"
 	"github.com/evcc-io/evcc/vehicle/vw"
 	"golang.org/x/oauth2"
 )
@@ -48,9 +50,23 @@ func (s *RemoteTokenSource) Token() (*oauth2.Token, error) {
 	return token, err
 }
 
+type params struct {
+	AuthClientID string
+	AuthParams   url.Values
+	Brand        string
+	Country      string
+}
+
+var brands = map[string]params{
+	"audi":  {audi.AuthClientID, audi.AuthParams, audi.Brand, audi.Country},
+	"seat":  {seat.AuthClientID, seat.AuthParams, seat.Brand, seat.Country},
+	"skoda": {skoda.AuthClientID, skoda.AuthParams, skoda.Brand, skoda.Country},
+	"vw":    {vw.AuthClientID, vw.AuthParams, vw.Brand, vw.Country},
+}
+
 func main() {
 	// parameters
-	flag.StringVar(&brand, "brand", "", "vehicle brand (audi|seat|vw)")
+	flag.StringVar(&brand, "brand", "", "vehicle brand (audi|seat|skoda|vw)")
 	flag.StringVar(&vin, "vin", "", "vehicle identification number")
 	flag.StringVar(&user, "user", "", "user name")
 	flag.StringVar(&password, "password", "", "password")
@@ -58,7 +74,7 @@ func main() {
 	flag.Parse()
 
 	if brand == "" || vin == "" || user == "" || password == "" {
-		fatalf("Usage: -brand=audi|skoda|vw -vin=<vin> -user=<user name> -password=<password>")
+		fatalf("Usage: -brand=audi|seat|skoda|vw -vin=<vin> -user=<user name> -password=<password>")
 	}
 
 	vin = strings.ToUpper(vin)
@@ -68,20 +84,9 @@ func main() {
 	log := util.NewLogger("ident")
 
 	switch strings.ToLower(brand) {
-	case "audi":
-		identity = vw.NewIdentity(log, audi.AuthClientID, audi.AuthParams, user, password)
-		if err := identity.Login(); err != nil {
-			fatalf("login failed: %w", err)
-		}
-
-	case "seat":
-		identity = vw.NewIdentity(log, seat.AuthClientID, seat.AuthParams, user, password)
-		if err := identity.Login(); err != nil {
-			fatalf("login failed: %w", err)
-		}
-
-	case "vw":
-		identity = vw.NewIdentity(log, vw.AuthClientID, vw.AuthParams, user, password)
+	case "audi", "seat", "skoda", "vw":
+		params := brands[strings.ToLower(brand)]
+		identity = vw.NewIdentity(log, params.AuthClientID, params.AuthParams, user, password)
 		if err := identity.Login(); err != nil {
 			fatalf("login failed: %w", err)
 		}
@@ -95,22 +100,9 @@ func main() {
 	log = util.NewLogger("api")
 
 	switch strings.ToLower(brand) {
-	case "audi":
-		api := vw.NewAPI(log, ts, audi.Brand, audi.Country)
-		if err := api.HomeRegion(vin); err != nil {
-			fatalf("home region failed: %w", err)
-		}
-		vehicle = vw.NewProvider(api, vin, cache)
-
-	case "seat":
-		api := vw.NewAPI(log, ts, seat.Brand, seat.Country)
-		if err := api.HomeRegion(vin); err != nil {
-			fatalf("home region failed: %w", err)
-		}
-		vehicle = vw.NewProvider(api, vin, cache)
-
-	case "vw":
-		api := vw.NewAPI(log, ts, vw.Brand, vw.Country)
+	case "audi", "seat", "skoda", "vw":
+		params := brands[strings.ToLower(brand)]
+		api := vw.NewAPI(log, ts, params.Brand, params.Country)
 		if err := api.HomeRegion(vin); err != nil {
 			fatalf("home region failed: %w", err)
 		}
